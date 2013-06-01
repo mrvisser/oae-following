@@ -16,6 +16,7 @@
 var _ = require('underscore');
 var assert = require('assert');
 
+var ActivityTestsUtil = require('oae-activity/lib/test/util');
 var RestAPI = require('oae-rest');
 var RestContext = require('oae-rest/lib/model').RestContext;
 var RestUtil = require('oae-rest/lib/util');
@@ -30,7 +31,6 @@ before(function(callback) {
     camAdminRestContext = TestsUtil.createTenantAdminRestContext(global.oaeTests.tenants.cam.host);
     callback();
 });
-
 
 describe('Following', function() {
 
@@ -49,6 +49,31 @@ describe('Following', function() {
                     assert.equal(data.length, 1);
                     assert.equal(data[0].id, followedUser.user.id);
                     callback();
+                });
+            });
+        });
+    });
+
+    it('verify following activity and notifications', function(callback) {
+        TestsUtil.generateTestUsers(camAdminRestContext, 2, function(err, testUsers) {
+            assert.ok(!err);
+            var followerUser = testUsers[_.keys(testUsers)[0]];
+            var followedUser = testUsers[_.keys(testUsers)[1]];
+
+            RestUtil.RestRequest(followerUser.restContext, '/api/following/' + followedUser.user.id + '/follow', 'POST', null, function(err) {
+                assert.ok(!err);
+
+                ActivityTestsUtil.collectAndGetActivityStream(followerUser.restContext, followerUser.user.id, null, function(err, stream) {
+                    assert.ok(!err);
+                    assert.equal(stream.items[0].actor['oae:id'], followerUser.user.id);
+                    assert.equal(stream.items[0].object['oae:id'], followedUser.user.id);
+
+                    ActivityTestsUtil.collectAndGetNotificationStream(followedUser.restContext, null, function(err, stream) {
+                        assert.ok(!err);
+                        assert.equal(stream.items[0].actor['oae:id'], followerUser.user.id);
+                        assert.equal(stream.items[0].object['oae:id'], followedUser.user.id);
+                        return setTimeout(callback, 5000);
+                    });
                 });
             });
         });
